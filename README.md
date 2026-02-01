@@ -30,6 +30,8 @@ cd C:\path\to\repo
 python -m pip install -r requirements.txt
 python -m playwright install
 ```
+Note that releases have the requirements bundled and the program compiled to a single executable for windows.  compile flags are as follows
+```pyinstaller --onefile --console disprobe.py```
 
 ## Usage
 Basic:
@@ -42,13 +44,12 @@ Help:
 python .\disprobe.py --help
 ```
 
-Important flags:
-- `--no-browser` — do not start Playwright; treat non-RSS entries as UNKNOWN
-- `--debug --debug-file debug.json` — produce structured debug log lines
-- `--file <path>` — specify config file (default: distros.txt)
+Useful flags:
+- `--no-browser` — do not attempt to fall back to Playwright
 - `--csv <path>` / `--json <path>` — write outputs
 - `--urls` — print collected Distrowatch URLs only
-
+- `--help` — show additional flags
+  
 Exit codes:
 - 0 — all up to date
 - 1 — at least one update available
@@ -76,10 +77,8 @@ Supported override keys:
 - `url` / `feed` / `uri`: explicit page or feed
 - `regex`: a Python regex to extract the version (first capture group preferred)
 
-Note: a deliberately malformed distro line (e.g. `almalinux=...`) can be used to exercise error paths — the tool will report UNKNOWN or the configured behavior.
-
 ## Examples
-Run without browser fallback:
+Run without browser fallback, push debug to file:
 ```powershell
 python .\disprobe.py --no-browser --debug --debug-file debug.json
 ```
@@ -103,6 +102,7 @@ The JSON-lines file contains helpful events (rss_session_created, rss_prefetch, 
 
 Common runtime issues
 - Server-side blocking (403 / connection refused) — Distrowatch will block your connection for 10 hours if they think you're trying to DDoS them.  If you've got an extremely large list it's recommended to split your distros.txt into multiple parts and use the --file flag.
+I went for what I thought was a good balance of speed and not getting hit with IP blocking but you may be able to find a better balance for your own use-case
 
 ## Contributing
 - Small fixes, better parsing heuristics, or additional sources are welcome.
