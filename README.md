@@ -45,16 +45,16 @@ python .\disprobe.py --help
 ```
 
 Useful flags:
-- `--no-browser` — do not attempt to fall back to Playwright
-- `--csv <path>` / `--json <path>` — write outputs
-- `--urls` — print collected Distrowatch URLs only
-- `--help` — show additional flags
+- `--no-browser`  do not attempt to fall back to Playwright
+- `--csv <path>` / `--json <path>` - write outputs
+- `--urls` - print collected Distrowatch URLs only
+- `--help` - show additional flags
   
 Exit codes:
-- 0 — all up to date
-- 1 — at least one update available
-- 2 — at least one local-ahead
-- 3 — mix of updates and local-ahead
+- 0 - all up to date
+- 1 - at least one update available
+- 2 - at least one local-ahead
+- 3 - mix of updates and local-ahead
 
 ## Config file (distros.txt)
 Plain text file, one distro per line:
@@ -101,7 +101,7 @@ python .\disprobe.py --debug --debug-file debug.json
 The JSON-lines file contains helpful events (rss_session_created, rss_prefetch, rss_http_status, playwright errors, etc.)
 
 Common runtime issues
-- Server-side blocking (403 / connection refused) — Distrowatch will block your connection for 10 hours if they think you're trying to DDoS them.  If you've got an extremely large list it's recommended to split your distros.txt into multiple parts and use the --file flag.
+- Server-side blocking (403 / connection refused) - Distrowatch will block your connection for 10 hours if they think you're trying to DDoS them.  If you've got an extremely large list it's recommended to split your distros.txt into multiple parts and use the --file flag.
 I went for what I thought was a good balance of speed and not getting hit with IP blocking but you may be able to find a better balance for your own use-case
 
 ## Contributing
