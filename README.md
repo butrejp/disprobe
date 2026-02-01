@@ -19,7 +19,7 @@ disprobe is a small command-line tool to check installed distro versions against
 Install dependencies:
 ```bash
 python -m pip install playwright httpx colorama
-python -m playwright install 
+python -m playwright install chromium
 ```
 
 On Windows use PowerShell / CMD as appropriate.
@@ -28,7 +28,7 @@ On Windows use PowerShell / CMD as appropriate.
 ```powershell
 cd C:\path\to\repo
 python -m pip install -r requirements.txt
-python -m playwright install
+python -m playwright install chromium
 ```
 Note that releases have the requirements bundled and the program compiled to a single executable for windows.  compile flags are as follows
 ```pyinstaller --onefile --console disprobe.py```
