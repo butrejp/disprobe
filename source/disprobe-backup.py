@@ -47,13 +47,12 @@ filter_updates = False
 filter_ahead = False
 filter_unknown = False
 no_pause = False
-no_browser = False
 debug = False
 debug_file = None
 urls_only = False
 version = "0.0.0"
 
-USAGE = """Usage: disprobe [options]
+USAGE = """Usage: ventoychecker [options]
 
 Options:
   -s<ms>                  Sleep time between page loads (ms)
@@ -65,14 +64,13 @@ Options:
   --retry-delay <ms>      Initial retry delay in milliseconds (default: 1000)
   --retries <n>           Number of retries for page navigation (default: 2)
   --rss-concurrency <n>   Max concurrent RSS fetches (default: 8)
-  --no-browser            Skip browser fallback; return UNKNOWN for non-RSS distros
   --only-updates          Show only distros with updates available
   --only-ahead            Show only distros where local version is ahead
   --only-unknown          Show only unknown/failed distros
   --no-pause              Do not prompt before exit
   --urls                  Print only collected Distrowatch URLs (one per line)
   --debug                 Enable debug logging
-  --debug-file <path>     Append debug JSON lines to file.  Requires --debug.
+  --debug-file <path>     Write debug JSON lines to file
   --version               Show program version and exit
   -h, --help              Show this help message and exit
 """
@@ -112,8 +110,6 @@ while i < len(args):
     elif arg == "--rss-concurrency" and i + 1 < len(args):
         rss_concurrency = int(args[i + 1])
         i += 1
-    elif arg == "--no-browser":
-        no_browser = True
     elif arg == "--only-updates":
         filter_updates = True
     elif arg == "--only-ahead":
@@ -837,20 +833,12 @@ async def main():
                 debug_log("prefetch_summary", resolved=resolved_names, remaining=remaining_names)
                 import sys as _sys
                 _sys.stderr.write(f"Resolved via RSS: {len(resolved_names)} -> {resolved_names}\n")
-                if not globals().get("no_browser"):
-                    _sys.stderr.write(f"Remaining (will use browser): {len(remaining_names)} -> {remaining_names}\n")
+                _sys.stderr.write(f"Remaining (will use browser): {len(remaining_names)} -> {remaining_names}\n")
             except Exception:
                 pass
 
             # If all resolved via RSS, skip launching Playwright
             results = list(resolved.values())
-
-            # If --no-browser is set, convert remaining distros to UNKNOWN and skip Playwright
-            if remaining and globals().get("no_browser"):
-                for distro, lv in remaining:
-                    results.append((distro, lv, "N/A", "UNKNOWN", "", "skipped_no_browser"))
-                remaining = []
-
             tasks = []
             browser = None
             browser_results = []
@@ -989,13 +977,6 @@ async def main():
 
     # If user only asked for URLs, print them one-per-line and exit
     if urls_only:
-        # compute exit code from result flags before returning
-        exit_code = (
-            3 if updates and local_ahead else
-            1 if updates else
-            2 if local_ahead else
-            0
-        )
         for u in urls:
             print(u)
         return exit_code, filtered_results
