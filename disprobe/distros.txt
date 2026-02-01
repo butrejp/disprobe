@@ -1,0 +1,6 @@
+# Distro=LocalVersion
+fedora=38
+almalinux=10.1
+tinycore=13.1
+bazzite=2024.12
+slackware=15
