@@ -19,7 +19,7 @@ disprobe is a small command-line tool to check installed distro versions against
 Install dependencies:
 ```bash
 python -m pip install playwright httpx colorama
-python -m playwright install
+python -m playwright install 
 ```
 
 On Windows use PowerShell / CMD as appropriate.
@@ -27,19 +27,19 @@ On Windows use PowerShell / CMD as appropriate.
 ## Quick install (example)
 ```powershell
 cd C:\path\to\repo
-python -m pip install -r requirements.txt   # if you create one
+python -m pip install -r requirements.txt
 python -m playwright install
 ```
 
 ## Usage
 Basic:
 ```powershell
-python .\disprobe\disprobe.py
+python .\disprobe.py
 ```
 
 Help:
 ```powershell
-python .\disprobe\disprobe.py --help
+python .\disprobe.py --help
 ```
 
 Important flags:
@@ -81,34 +81,29 @@ Note: a deliberately malformed distro line (e.g. `almalinux=...`) can be used to
 ## Examples
 Run without browser fallback:
 ```powershell
-python .\disprobe\disprobe.py --no-browser --debug --debug-file debug.json
+python .\disprobe.py --no-browser --debug --debug-file debug.json
 ```
 
 Write JSON output:
 ```powershell
-python .\disprobe\disprobe.py --json results.json
+python .\disprobe.py --json results.json
 ```
 
 Print only Distrowatch URLs:
 ```powershell
-python .\disprobe\disprobe.py --urls
+python .\disprobe.py --urls
 ```
 
 ## Debugging
 Enable debug logging to capture structured events:
 ```powershell
-python .\disprobe\disprobe.py --debug --debug-file debug.json
+python .\disprobe.py --debug --debug-file debug.json
 ```
 The JSON-lines file contains helpful events (rss_session_created, rss_prefetch, rss_http_status, playwright errors, etc.)
 
 Common runtime issues
-- Playwright not installed or browsers missing — run `python -m playwright install`
-- Server-side blocking (403 / connection refused) — try `--no-browser` or adjust headers/intervals
-- Missing `httpx` — install via pip for RSS fetching
+- Server-side blocking (403 / connection refused) — Distrowatch will block your connection for 10 hours if they think you're trying to DDoS them.  If you've got an extremely large list it's recommended to split your distros.txt into multiple parts and use the --file flag.
 
 ## Contributing
 - Small fixes, better parsing heuristics, or additional sources are welcome.
 - Keep changes minimal and add tests for parsing functions where possible.
-
-## License
-MIT — include a LICENSE file if desired.
