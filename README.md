@@ -8,7 +8,6 @@ disprobe is a small command-line tool to check installed distro versions against
 - Per-distro overrides: custom URL, feed, or regex extraction
 - Batch mode with parallel page fetches
 - Filters and output formats: table, CSV, JSON
-- Optional `--no-browser` mode to avoid Playwright entirely (returns UNKNOWN for non-RSS distros)
 - Debug logging to JSON lines for easy tracing
 
 ## Requirements
@@ -17,37 +16,16 @@ disprobe is a small command-line tool to check installed distro versions against
 - Playwright browsers (if not using `--no-browser`)
 
 Install dependencies:
-```bash
-python -m pip install playwright httpx colorama
-python -m playwright install chromium
 ```
-
-On Windows use PowerShell / CMD as appropriate.
-
-## Quick install (example)
-```powershell
-cd C:\path\to\repo
 python -m pip install -r requirements.txt
 python -m playwright install chromium
 ```
 Note that releases have the requirements bundled and the program compiled to a single executable for windows.  compile flags are as follows
 ```pyinstaller --onefile --console disprobe.py```
 
-## Usage
-Basic:
-```powershell
-python .\disprobe.py
-```
-
-Help:
-```powershell
-python .\disprobe.py --help
-```
-
 Useful flags:
 - `--no-browser`  do not attempt to fall back to Playwright
-- `--csv <path>` / `--json <path>` - write outputs
-- `--urls` - print collected Distrowatch URLs only
+- `--csv <path>` / `--json <path>` - write outputs to csv or json
 - `--help` - show additional flags
   
 Exit codes:
@@ -79,23 +57,18 @@ Supported override keys:
 
 ## Examples
 Run without browser fallback, push debug to file:
-```powershell
+```
 python .\disprobe.py --no-browser --debug --debug-file debug.json
 ```
 
 Write JSON output:
-```powershell
-python .\disprobe.py --json results.json
 ```
-
-Print only Distrowatch URLs:
-```powershell
-python .\disprobe.py --urls
+python .\disprobe.py --json results.json
 ```
 
 ## Debugging
 Enable debug logging to capture structured events:
-```powershell
+```
 python .\disprobe.py --debug --debug-file debug.json
 ```
 The JSON-lines file contains helpful events (rss_session_created, rss_prefetch, rss_http_status, playwright errors, etc.)
@@ -103,7 +76,3 @@ The JSON-lines file contains helpful events (rss_session_created, rss_prefetch, 
 Common runtime issues
 - Server-side blocking (403 / connection refused) - Distrowatch will block your connection for 10 hours if they think you're trying to DDoS them.  If you've got an extremely large list it's recommended to split your distros.txt into multiple parts and use the --file flag.
 I went for what I thought was a good balance of speed and not getting hit with IP blocking but you may be able to find a better balance for your own use-case
-
-## Contributing
-- Small fixes, better parsing heuristics, or additional sources are welcome.
-- Keep changes minimal and add tests for parsing functions where possible.
