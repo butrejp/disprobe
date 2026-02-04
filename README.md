@@ -2,6 +2,8 @@
 
 disprobe is a small command-line tool to check installed distro versions against upstream release sources (Distrowatch, RSS feeds, or arbitrary URLs). It was born to keep a Ventoy disk up-to-date but is generic enough to track any distribution release versions.
 
+![screenshot of the program in action](example.png)
+
 ## Features
 - RSS-first prefetch for speed and low load
 - Playwright browser fallback for sites that require rendering
