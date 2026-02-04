@@ -5,10 +5,9 @@ disprobe is a small command-line tool to check installed distro versions against
 ![screenshot of the program in action](example.png)
 
 ## Features
-- RSS-first prefetch for speed and low load
+- RSS prefetch for speed and low load
 - Playwright browser fallback for sites that require rendering
 - Per-distro overrides: custom URL, feed, or regex extraction
-- Batch mode with parallel page fetches
 - Filters and output formats: table, CSV, JSON
 - Debug logging to JSON lines for easy tracing
 
@@ -36,7 +35,7 @@ Exit codes:
 - 2 - at least one local-ahead
 - 3 - mix of updates and local-ahead
 
-## Config file (distros.txt)
+## Config (distros.txt)
 Plain text file, one distro per line:
 - Format: `distro=local_version`
 - Blank lines and `#` comments ignored
@@ -55,7 +54,7 @@ mydistro=1.2;source=rss;feed=https://example.org/feed.xml;regex=(\d+\.\d+)
 Supported override keys:
 - `source`: `distrowatch` (default), `rss`, or `url`
 - `url` / `feed` / `uri`: explicit page or feed
-- `regex`: a Python regex to extract the version (first capture group preferred)
+- `regex`: a Python regex to extract the version
 
 ## Examples
 Run without browser fallback, push debug to file:
@@ -69,7 +68,7 @@ python .\disprobe.py --json results.json
 ```
 
 ## Debugging
-Enable debug logging to capture structured events:
+Enable debug logging to capture events:
 ```
 python .\disprobe.py --debug --debug-file debug.json
 ```
