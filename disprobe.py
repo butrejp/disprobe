@@ -51,7 +51,27 @@ no_browser = False
 debug = False
 debug_file = None
 urls_only = False
-version = "0.0.1"
+version = "1.0.0"
+
+# Exit codes: only used for error conditions. Keep program state in JSON/debug output.
+EXIT_OK = 0
+EXIT_CONFIG = 1
+EXIT_FATAL = 2
+EXIT_NETWORK = 3
+# Catch-all for multiple issues
+EXIT_MULTIPLE = 4
+# Partial exit codes:
+# 10: partial config error (some items affected by config issues)
+# 20: partial/fallback error (generic partial failure)
+# 30: partial network success: some distros failed (UNKNOWN) while others succeeded
+EXIT_PARTIAL_CONFIG = 10
+EXIT_PARTIAL_OTHER = 20
+EXIT_PARTIAL_NETWORK = 30
+# Partial multiple: multiple different error types occurred but some items succeeded
+EXIT_PARTIAL_MULTIPLE = 40
+
+# Track if config parsing emitted non-fatal warnings that may affect results
+config_partial_issues = False
 
 USAGE = """Usage: disprobe [options]
 
@@ -141,7 +161,7 @@ local_versions = {}
 overrides = {}
 if not config_file.exists():
     print(f"[ERROR] Config file not found: {config_file}")
-    sys.exit(4)
+    sys.exit(EXIT_CONFIG)
 
 with open(config_file, "r", encoding="utf-8") as f:
     for lineno, line in enumerate(f, start=1):
@@ -149,9 +169,11 @@ with open(config_file, "r", encoding="utf-8") as f:
         if not line or line.startswith("#"):
             continue
         if "=" not in line:
+            config_partial_issues = True
             print(f"[WARN] Line {lineno} ignored, missing '=': {line}")
             continue
         if line.count("=") > 1:
+            config_partial_issues = True
             print(f"[WARN] Line {lineno} has multiple '=' signs; ignoring: {line}")
             continue
 
@@ -175,9 +197,11 @@ with open(config_file, "r", encoding="utf-8") as f:
                 overrides[distro] = meta_map
 
         if not distro or not version:
+            config_partial_issues = True
             print(f"[WARN] Line {lineno} ignored, empty distro or version: {line}")
             continue
         if not re.search(r"\d", version):
+            config_partial_issues = True
             print(f"[WARN] Line {lineno} ignored, version has no digits: {line}")
             continue
 
@@ -185,7 +209,7 @@ with open(config_file, "r", encoding="utf-8") as f:
 
 if not local_versions:
     print("[ERROR] No valid distros found in config file")
-    sys.exit(4)
+    sys.exit(EXIT_CONFIG)
 
 DW_URL = "https://distrowatch.com/table.php?distribution={}"
 
@@ -717,6 +741,8 @@ async def try_rss_only(p, distro, local_version):
 async def main():
     # Ensure `resolved` exists in the function scope before any early references
     resolved = {}
+    # Track partial/fallback issues encountered during runtime
+    partial_other = False
     try:
         import time, signal
         main_start = time.monotonic()
@@ -930,6 +956,8 @@ async def main():
             if browser_results:
                 for r in browser_results:
                     if isinstance(r, Exception):
+                        # mark that some tasks failed while others may have succeeded
+                        partial_other = True
                         debug_log("task_exception", exc=str(r))
                         continue
                     # prefer prefetch/resolved entries (RSS) — skip browser result
@@ -946,7 +974,7 @@ async def main():
         print(f"[ERROR] Playwright failure: {e}")
         import traceback
         debug_log("playwright_error", error=str(e), exc=traceback.format_exc())
-        return 4, []
+        return EXIT_FATAL, []
 
     results.sort(key=lambda x: x[0])
 
@@ -989,16 +1017,18 @@ async def main():
 
     # If user only asked for URLs, print them one-per-line and exit
     if urls_only:
-        # compute exit code from result flags before returning
-        exit_code = (
-            3 if updates and local_ahead else
-            1 if updates else
-            2 if local_ahead else
-            0
-        )
+        # Derive process exit from network conditions (error-only codes)
+        network_unknowns = any(r[3] == "UNKNOWN" for r in results)
+        any_successful = any(r[3] != "UNKNOWN" for r in results)
+        if network_unknowns and not any_successful:
+            proc_exit = EXIT_NETWORK
+        elif network_unknowns and any_successful:
+            proc_exit = EXIT_PARTIAL_NETWORK
+        else:
+            proc_exit = EXIT_OK
         for u in urls:
             print(u)
-        return exit_code, filtered_results
+        return proc_exit, filtered_results
 
     # CSV
     if csv_output:
@@ -1013,7 +1043,8 @@ async def main():
 
     # JSON
     if json_output:
-        exit_code = (
+        # Keep the old "result state" mapping for the JSON summary only
+        summary_state = (
             3 if updates and local_ahead else
             1 if updates else
             2 if local_ahead else
@@ -1035,7 +1066,7 @@ async def main():
             "summary": {
                 "updates_available": updates,
                 "local_ahead": local_ahead,
-                "exit_code": exit_code,
+                "exit_code": summary_state,
             },
             "results": list_of_results,
         }
@@ -1044,16 +1075,35 @@ async def main():
 
     debug_log("total_runtime", total=(__import__("time").monotonic() - main_start))
 
-    if updates and local_ahead:
-        exit_code = 3
-    elif updates:
-        exit_code = 1
-    elif local_ahead:
-        exit_code = 2
-    else:
-        exit_code = 0
+    # Final process exit: error-only semantics.
+    network_unknowns = any(r[3] == "UNKNOWN" for r in results)
+    any_successful = any(r[3] != "UNKNOWN" for r in results)
+    has_network_all = network_unknowns and not any_successful
+    has_network_partial = network_unknowns and any_successful
+    has_config = bool(globals().get("config_partial_issues"))
+    has_other = bool(partial_other)
 
-    return exit_code, filtered_results
+    # Multiple-issue handling:
+    # - If there is a partial network (some UNKNOWN and some OK) plus other issues,
+    #   return a partial-multiple code (40).
+    # - If there are multiple different issues (any two or more of network-all, config, other),
+    #   return a catch-all multiple code (4).
+    if has_network_partial and (has_config or has_other):
+        proc_exit = EXIT_PARTIAL_MULTIPLE
+    elif (has_network_all and (has_config or has_other)) or (has_config and has_other):
+        proc_exit = EXIT_MULTIPLE
+    elif has_network_all:
+        proc_exit = EXIT_NETWORK
+    elif has_network_partial:
+        proc_exit = EXIT_PARTIAL_NETWORK
+    elif has_config:
+        proc_exit = EXIT_PARTIAL_CONFIG
+    elif has_other:
+        proc_exit = EXIT_PARTIAL_OTHER
+    else:
+        proc_exit = EXIT_OK
+
+    return proc_exit, filtered_results
 
 def _parse_selection(s: str, max_idx: int) -> list[int]:
     out = set()

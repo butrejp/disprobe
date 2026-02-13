@@ -1,0 +1,10 @@
+{
+  "sleep_ms": 500,
+  "parallel_tabs": 8,
+  "timeout_ms": 15000,
+  "retry_delay_ms": 1000,
+  "retries": 2,
+  "rss_concurrency": 8,
+  "no_browser": false,
+  "debug": false
+}

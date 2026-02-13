@@ -1,3 +1,4 @@
+
 # disprobe
 
 disprobe is a small command-line tool to check installed distro versions against upstream release sources (Distrowatch, RSS feeds, or arbitrary URLs). It was born to keep a Ventoy disk up-to-date but is generic enough to track any distribution release versions.
@@ -5,10 +6,9 @@ disprobe is a small command-line tool to check installed distro versions against
 ![screenshot of the program in action](example.png)
 
 ## Features
-- RSS-first prefetch for speed and low load
+- RSS prefetch for speed and low load
 - Playwright browser fallback for sites that require rendering
 - Per-distro overrides: custom URL, feed, or regex extraction
-- Batch mode with parallel page fetches
 - Filters and output formats: table, CSV, JSON
 - Debug logging to JSON lines for easy tracing
 
@@ -30,13 +30,22 @@ Useful flags:
 - `--csv <path>` / `--json <path>` - write outputs to csv or json
 - `--help` - show additional flags
   
-Exit codes:
-- 0 - all up to date
-- 1 - at least one update available
-- 2 - at least one local-ahead
-- 3 - mix of updates and local-ahead
+## Exit codes
 
-## Config file (distros.txt)
+Exit codes are used for errors only; normal distro-state is reported in the JSON/debug output.
+
+- `0` — OK: Program completed without errors.
+- `1` — CONFIG: Configuration error (missing or invalid config file).
+- `2` — FATAL: Fatal runtime error (unexpected exception, Playwright or internal failure).
+- `3` — NETWORK: Network error — all network fetches failed (e.g., Distrowatch or RSS unavailable).
+- `3` — NETWORK: Network error — all network fetches failed (e.g., Distrowatch or RSS unavailable).
+- `4` — MULTIPLE: Multiple different issues occurred (catch-all for combined errors).
+- `10` — PARTIAL_CONFIG: Partial configuration issues — some config lines were ignored or emitted warnings.
+- `20` — PARTIAL_OTHER: Partial/fallback error — some runtime tasks failed while others succeeded.
+- `30` — PARTIAL_NETWORK: Partial network failure — some distros returned `UNKNOWN` while others succeeded.
+- `40` — PARTIAL_MULTIPLE: Multiple partial errors occurred while some distros succeeded (mixed partials).
+
+## Config (distros.txt)
 Plain text file, one distro per line:
 - Format: `distro=local_version`
 - Blank lines and `#` comments ignored
@@ -55,7 +64,7 @@ mydistro=1.2;source=rss;feed=https://example.org/feed.xml;regex=(\d+\.\d+)
 Supported override keys:
 - `source`: `distrowatch` (default), `rss`, or `url`
 - `url` / `feed` / `uri`: explicit page or feed
-- `regex`: a Python regex to extract the version (first capture group preferred)
+- `regex`: a Python regex to extract the version
 
 ## Examples
 Run without browser fallback, push debug to file:
@@ -69,7 +78,7 @@ python .\disprobe.py --json results.json
 ```
 
 ## Debugging
-Enable debug logging to capture structured events:
+Enable debug logging to capture events:
 ```
 python .\disprobe.py --debug --debug-file debug.json
 ```
