@@ -23,8 +23,10 @@ python -m pip install -r requirements.txt
 python -m playwright install chromium
 ```
 Note that releases have the requirements bundled and the program compiled to a single executable for windows.  compile flags are as follows  
-```pyinstaller --onefile --console disprobe.py```  
-```pyinstaller --noconfirm --onefile --windowed --hidden-import ttkbootstrap --hidden-import darkdetect disprobe_gui.py```
+```
+pyinstaller --onefile --console disprobe.py
+pyinstaller --noconfirm --onefile --windowed --hidden-import ttkbootstrap --hidden-import darkdetect disprobe_gui.py
+```
 
 Useful flags:
 - `--no-browser`  do not attempt to fall back to Playwright
