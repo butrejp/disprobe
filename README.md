@@ -32,8 +32,6 @@ Useful flags:
   
 ## Exit codes
 
-Exit codes are used for errors only; normal distro-state is reported in the JSON/debug output.
-
 - `0` — OK: Program completed without errors.
 - `1` — CONFIG: Configuration error (missing or invalid config file).
 - `2` — FATAL: Fatal runtime error (unexpected exception, Playwright or internal failure).
