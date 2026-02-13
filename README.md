@@ -38,7 +38,6 @@ Exit codes are used for errors only; normal distro-state is reported in the JSON
 - `1` — CONFIG: Configuration error (missing or invalid config file).
 - `2` — FATAL: Fatal runtime error (unexpected exception, Playwright or internal failure).
 - `3` — NETWORK: Network error — all network fetches failed (e.g., Distrowatch or RSS unavailable).
-- `3` — NETWORK: Network error — all network fetches failed (e.g., Distrowatch or RSS unavailable).
 - `4` — MULTIPLE: Multiple different issues occurred (catch-all for combined errors).
 - `10` — PARTIAL_CONFIG: Partial configuration issues — some config lines were ignored or emitted warnings.
 - `20` — PARTIAL_OTHER: Partial/fallback error — some runtime tasks failed while others succeeded.
