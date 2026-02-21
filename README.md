@@ -14,7 +14,7 @@ disprobe is a small command-line tool to check installed distro versions against
 
 ## Requirements
 - Python 3.10+
-- Packages: playwright, httpx, colorama
+- Packages: playwright, httpx, colorama, ttkbootstrap, darkdetect
 - Playwright browsers (if not using `--no-browser`)
 
 Install dependencies:
@@ -22,8 +22,12 @@ Install dependencies:
 python -m pip install -r requirements.txt
 python -m playwright install chromium
 ```
-Note that releases have the requirements bundled and the program compiled to a single executable for windows.  compile flags are as follows
-```pyinstaller --onefile --console disprobe.py```
+Note that releases have the requirements bundled and the program compiled to a single executable for windows.  compile flags are as follows  
+```
+pyinstaller --onefile --console disprobe.py
+pyinstaller --noconfirm --onefile --windowed --hidden-import ttkbootstrap --hidden-import darkdetect disprobe_gui.py
+```
+
 
 Useful flags:
 - `--no-browser`  do not attempt to fall back to Playwright
@@ -37,7 +41,6 @@ Exit codes are used for errors only; normal distro-state is reported in the JSON
 - `0` — OK: Program completed without errors.
 - `1` — CONFIG: Configuration error (missing or invalid config file).
 - `2` — FATAL: Fatal runtime error (unexpected exception, Playwright or internal failure).
-- `3` — NETWORK: Network error — all network fetches failed (e.g., Distrowatch or RSS unavailable).
 - `3` — NETWORK: Network error — all network fetches failed (e.g., Distrowatch or RSS unavailable).
 - `4` — MULTIPLE: Multiple different issues occurred (catch-all for combined errors).
 - `10` — PARTIAL_CONFIG: Partial configuration issues — some config lines were ignored or emitted warnings.
