@@ -159,6 +159,8 @@ class DisprobeGUI:
         self.top.pack(fill="x")
 
         self.status_var = tk.StringVar(value="Idle")
+        # record detected theme for use in theming
+        self.is_dark = IS_DARK
         # placeholders; actual widgets created in the rss_row so they share one line
         self.status_lbl = None
         self.exit_lbl = None
@@ -265,8 +267,9 @@ class DisprobeGUI:
                 style.map("Treeview.Heading", foreground=[("active", self.fg), ("!disabled", self.fg)])
             except Exception:
                 pass
-            self.tree.tag_configure("odd", background=odd_bg, foreground=self.fg)
-            self.tree.tag_configure("even", background=even_bg, foreground=self.fg)
+            # odd/even tags only control background so status tags can set foreground
+            self.tree.tag_configure("odd", background=odd_bg)
+            self.tree.tag_configure("even", background=even_bg)
         except Exception:
             pass
 
@@ -345,8 +348,17 @@ class DisprobeGUI:
         self.debug.pack_forget()
 
         self.tmp_json = Path(tempfile.gettempdir()) / "disprobe_results.json"
-        # settings persistence
-        self.settings_path = DISPROBE.parent / "gui_settings.json"
+        # settings persistence: when frozen prefer exe location (use argv[0] to
+        # find the original exe path when using --onefile); otherwise keep next
+        # to the source `disprobe.py`.
+        try:
+            if getattr(sys, 'frozen', False):
+                exe_dir = Path(sys.argv[0]).resolve().parent
+            else:
+                exe_dir = DISPROBE.parent
+        except Exception:
+            exe_dir = DISPROBE.parent
+        self.settings_path = exe_dir / "gui_settings.json"
         self._load_settings()
 
     def toggle_raw(self):
@@ -799,8 +811,31 @@ class DisprobeGUI:
             except Exception:
                 pass
             try:
-                self.tree.tag_configure("odd", background=odd_bg, foreground=self.fg)
-                self.tree.tag_configure("even", background=even_bg, foreground=self.fg)
+                # ensure row background tags are updated; status foreground tags updated below
+                self.tree.tag_configure("odd", background=odd_bg)
+                self.tree.tag_configure("even", background=even_bg)
+                # status tags: choose colors appropriate for current theme
+                if self.is_dark:
+                    st_colors = {
+                        "UP TO DATE": "#00FFFF",          # cyan
+                        "UPDATE AVAILABLE": "#FFF59D",   # light yellow
+                        "LOCAL AHEAD": "#FF77FF",        # light magenta
+                        "UNKNOWN": self.fg,
+                    }
+                else:
+                    st_colors = {
+                        "UP TO DATE": "#008B8B",         # darker cyan
+                        "UPDATE AVAILABLE": "#B28700",  # darker yellow/gold
+                        "LOCAL AHEAD": "#9A00A8",       # darker magenta/purple
+                        "UNKNOWN": self.fg,
+                    }
+                try:
+                    self.tree.tag_configure("st_up_to_date", foreground=st_colors["UP TO DATE"])
+                    self.tree.tag_configure("st_update_available", foreground=st_colors["UPDATE AVAILABLE"])
+                    self.tree.tag_configure("st_local_ahead", foreground=st_colors["LOCAL AHEAD"])
+                    self.tree.tag_configure("st_unknown", foreground=st_colors["UNKNOWN"])
+                except Exception:
+                    pass
             except Exception:
                 pass
             try:
@@ -985,12 +1020,27 @@ class DisprobeGUI:
                 dv = row[2] if len(row) > 2 else ""
                 st = row[3] if len(row) > 3 else ""
                 src = row[5] if len(row) > 5 else ""
-            tag = "odd" if (idx % 2) == 0 else "even"
+            row_bg_tag = "odd" if (idx % 2) == 0 else "even"
+            # map status string to a status tag (use uppercase keys as produced by disprobe)
+            st_key = (st or "").upper()
+            if st_key == "UP TO DATE":
+                st_tag = "st_up_to_date"
+            elif st_key == "UPDATE AVAILABLE":
+                st_tag = "st_update_available"
+            elif st_key == "LOCAL AHEAD":
+                st_tag = "st_local_ahead"
+            else:
+                st_tag = "st_unknown"
+
             vals = (d, "|", lv, "|", dv, "|", st, "|", src)
             try:
-                self.tree.insert("", "end", values=vals, tags=(tag,))
+                self.tree.insert("", "end", values=vals, tags=(row_bg_tag, st_tag))
             except Exception:
-                self.tree.insert("", "end", values=vals)
+                # fallback to single tag
+                try:
+                    self.tree.insert("", "end", values=vals, tags=(row_bg_tag,))
+                except Exception:
+                    self.tree.insert("", "end", values=vals)
 
         # show raw
         self.raw.delete("1.0", "end")

@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import csv
 import json
+from urllib.parse import urlparse
 import asyncio
 from colorama import init, Fore
 from playwright.async_api import async_playwright
@@ -51,7 +52,7 @@ no_browser = False
 debug = False
 debug_file = None
 urls_only = False
-version = "1.0.0"
+version = "1.1"
 
 # Exit codes: only used for error conditions. Keep program state in JSON/debug output.
 EXIT_OK = 0
@@ -270,6 +271,37 @@ def parse_rss_text(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _rss_feed_matches_distro(text: str | None, distro: str) -> bool:
+    """Return True if the fetched RSS/XML/text appears to be for `distro`.
+
+    Heuristics:
+    - Look for an atom:link/@href pointing to the distro's feed URL
+    - Look for a channel <link> pointing to the distro table page
+    - Look for the channel <title> containing the distro slug/name
+    """
+    try:
+        if not text:
+            return False
+        td = distro.lower()
+        t = text.lower()
+        # atom:self href for RSS feed
+        if f"/news/distro/{td}.xml" in t:
+            return True
+        # direct delivered link to the distro table
+        if f"/table.php?distribution={td}" in t:
+            return True
+        # channel title like "DistroWatch - Ubuntu"
+        m = re.search(r"<title[^>]*>([^<]+)</title>", text, re.I)
+        if m:
+            title = m.group(1).lower()
+            # check if distro slug appears in the title or vice versa
+            if td in title or title in td:
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def debug_log(event: str, **data) -> None:
     """Emit structured debug as JSON lines to stderr or a debug file when enabled.
 
@@ -401,14 +433,16 @@ async def fetch(browser, distro, local_version, sem):
                     text = None
                     status = None
                     headers = {}
+                    final_url = feed_url
                     try:
                         async with session.stream("GET", feed_url) as resp:
                             status = resp.status_code
+                            final_url = str(getattr(resp, "url", feed_url))
                             try:
                                 headers = dict(resp.headers)
                             except Exception:
                                 headers = {}
-                            debug_log("rss_http_status", distro=distro, status=status, url=feed_url, headers=headers)
+                            debug_log("rss_http_status", distro=distro, status=status, requested=feed_url, delivered=final_url, headers=headers)
                             if status == 200:
                                 try:
                                     b = await resp.aread()
@@ -421,8 +455,17 @@ async def fetch(browser, distro, local_version, sem):
                     except Exception as e:
                         debug_log("rss_http_exception", distro=distro, exc=str(e))
 
-                    content_type = headers.get("Content-Type", "")
+                    content_type = headers.get("Content-Type") or headers.get("content-type") or ""
                     need_browser_fallback = False
+                    # Header-based mismatch: if server advertises a non-RSS/XML type, treat as network/fetch failure
+                    try:
+                        if content_type and not re.search(r"(xml|rss)", content_type, re.I):
+                            final_url = final_url if 'final_url' in locals() else feed_url
+                            need_browser_fallback = True
+                            debug_log("rss_content_type_mismatch", distro=distro, requested=feed_url, delivered=final_url, content_type=content_type)
+                    except Exception:
+                        # Defensive: fall back to existing heuristics if header parsing fails
+                        pass
                     if status != 200 or not text:
                         need_browser_fallback = True
                     else:
@@ -454,6 +497,13 @@ async def fetch(browser, distro, local_version, sem):
                                         text = m2.group(0)
                                     else:
                                         text = page_text
+                                # Verify the fetched feed appears to be for the requested distro.
+                                try:
+                                    if not _rss_feed_matches_distro(text, distro):
+                                        debug_log("rss_feed_mismatch", distro=distro, requested=feed_url, detected_snippet=(page_text[:2000] if page_text else ""))
+                                        text = None
+                                except Exception:
+                                    pass
                                 content_type = "application/xml"
                             except Exception as e:
                                 debug_log("playwright_rss_fetch_error", distro=distro, error=str(e), exc=traceback.format_exc())
@@ -680,29 +730,40 @@ async def try_rss_only(p, distro, local_version):
                 except Exception:
                     info_headers = {}
                 status = resp.status_code
-                debug_log("rss_http_status", distro=distro, status=status, url=str(getattr(resp, 'url', feed_url)), headers=info_headers)
+                final_url = str(getattr(resp, "url", feed_url))
+                debug_log("rss_http_status", distro=distro, status=status, requested=feed_url, delivered=final_url, headers=info_headers)
+                # If the server advertises a non-XML/RSS content-type, force playwright fallback.
+                ct = info_headers.get('Content-Type') or info_headers.get('content-type')
+                try:
+                    if ct and not re.search(r"(xml|rss)", ct, re.I):
+                        used_playwright = True
+                        debug_log("rss_content_type_mismatch", distro=distro, requested=feed_url, delivered=final_url, content_type=ct)
+                except Exception:
+                    # Defensive: if header parsing fails, continue to chunked sniffing below
+                    pass
                 if status != 200:
                     used_playwright = True
                 else:
-                    buf = ""
-                    async for chunk in resp.aiter_bytes(chunk_size=2048):
-                        try:
-                            chunk_text = chunk.decode()
-                        except Exception:
-                            chunk_text = chunk.decode(errors="ignore")
-                        buf += chunk_text
-                        parsed = parse_rss_text(buf)
-                        if parsed:
+                    # Only perform chunked parsing if header didn't already force fallback
+                    if not used_playwright:
+                        buf = ""
+                        async for chunk in resp.aiter_bytes(chunk_size=2048):
+                            try:
+                                chunk_text = chunk.decode()
+                            except Exception:
+                                chunk_text = chunk.decode(errors="ignore")
+                            buf += chunk_text
+                            parsed = parse_rss_text(buf)
+                            if parsed:
+                                text = buf
+                                break
+                            if len(buf) > 64 * 1024:
+                                buf = buf[-32 * 1024:]
+                        if not text:
                             text = buf
-                            break
-                        if len(buf) > 64 * 1024:
-                            buf = buf[-32 * 1024:]
-                    if not text:
-                        text = buf
-                    ct = info_headers.get('Content-Type') or info_headers.get('content-type')
-                    debug_log("rss_raw_snippet", distro=distro, snippet=(text[:2000] if text else ""), content_type=ct, content_length=len(text) if text else None)
-                    if ct and 'html' in ct.lower() and not re.search(r"<(?:rss|feed|entry|item)[\s>]", text, re.I):
-                        used_playwright = True
+                        debug_log("rss_raw_snippet", distro=distro, snippet=(text[:2000] if text else ""), content_type=ct, content_length=len(text) if text else None)
+                        if ct and 'html' in ct.lower() and not re.search(r"<(?:rss|feed|entry|item)[\s>]", text, re.I):
+                            used_playwright = True
         except Exception as e:
             debug_log("rss_http_exception", distro=distro, exc=str(e))
             used_playwright = True
@@ -726,6 +787,13 @@ async def try_rss_only(p, distro, local_version):
                         text = m2.group(0)
                     else:
                         text = re.sub(r"<(/?)(html|body)[^>]*>", "", page_text, flags=re.I)
+                # Verify the fetched feed appears to be for the requested distro.
+                try:
+                    if not _rss_feed_matches_distro(text, distro):
+                        debug_log("rss_feed_mismatch", distro=distro, requested=feed_url, detected_snippet=(page_text[:2000] if page_text else ""))
+                        return None
+                except Exception:
+                    pass
                 debug_log("rss_raw_snippet", distro=distro, snippet=(text[:20000] if text else ""), via="playwright_fallback")
             except Exception as e:
                 debug_log("rss_playwright_error", distro=distro, exc=str(e))
@@ -1066,7 +1134,7 @@ async def main():
             "summary": {
                 "updates_available": updates,
                 "local_ahead": local_ahead,
-                "exit_code": summary_state,
+                "summary_state": summary_state,
             },
             "results": list_of_results,
         }
